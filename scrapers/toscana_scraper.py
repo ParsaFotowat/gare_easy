@@ -129,9 +129,12 @@ class ToscanaScraper(BaseScraper):
                 deadline_str = cols[6].get_text(strip=True)
                 deadline = self.parse_datetime(deadline_str)
                 
-                # Category
-                category_text = cols[2].get_text(strip=True)
+                # Category - Col 2 or infer from title
+                category_text = cols[2].get_text(strip=True) if len(cols) > 2 else ""
                 category = self._map_category(category_text)
+                if not category or category == "Services":
+                    # Try to infer from title
+                    category = self._infer_category_from_text(title)
                 
                 # Procedure & Place - Not typically in main table, but we can default or guess
                 proc_type = "Procedura aperta" # Most common

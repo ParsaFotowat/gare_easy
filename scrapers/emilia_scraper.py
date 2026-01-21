@@ -166,10 +166,21 @@ class EmiliaScraper(BaseScraper):
         if award_match:
             data['award_criterion'] = award_match.group(1).strip()
             
-        # Category (Inferred)
-        title = data['title'].lower()
-        if 'lavori' in title: data['category'] = 'Works'
-        elif 'fornitura' in title or 'forniture' in title: data['category'] = 'Supplies'
-        else: data['category'] = 'Services'
+        # Category (Inferred from title)
+        title_lower = data['title'].lower()
+        if 'lavori' in title_lower or 'costruzione' in title_lower or 'ristrutturazione' in title_lower or 'manutenzione' in title_lower:
+            data['category'] = 'Works'
+        elif 'fornitura' in title_lower or 'forniture' in title_lower or 'acquisto' in title_lower or 'materiali' in title_lower or 'beni' in title_lower:
+            data['category'] = 'Supplies'
+        else:
+            data['category'] = 'Services'
+        
+        # Procedure type (inferred from title)
+        if 'affidamento diretto' in title_lower:
+            data['procedure_type'] = 'Affidamento diretto'
+        elif 'negoziata' in title_lower:
+            data['procedure_type'] = 'Procedura negoziata'
+        else:
+            data['procedure_type'] = data.get('procedure_type', 'Procedura aperta')
         
         return data

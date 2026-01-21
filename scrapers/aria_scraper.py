@@ -98,9 +98,12 @@ class AriaScraper(BaseScraper):
                 # Col 5: Importo (Amount) - Sometimes hidden or in different col
                 # Col 6: Scadenza (Deadline)
                 
-                cig = cols[0].get_text(strip=True)
+                # CIG - Extract from first column
+                cig_raw = cols[0].get_text(strip=True)
+                # Often the CIG is the ARIA ID like "ARIA_2025_312_F" - use this as CIG
+                cig = cig_raw if cig_raw else None
                 
-                # Title and Link
+                # Title and Link - Col 1
                 link_col = cols[1]
                 link = link_col.find('a')
                 if not link:
@@ -116,39 +119,43 @@ class AriaScraper(BaseScraper):
                      # Fallback to search page if detailed link is JS
                      full_url = f"{self.base_url}/eprocdata/arcaSearch.xhtml"
 
-                # Procedure Type logic with Title Fallback
+                # Get raw text from column 2 for analysis
                 raw_col2 = cols[2].get_text(strip=True) if len(cols) > 2 else ""
                 
-                # If Title is empty (common in some Sintel views), try to extract it from Col 2
+                # If Title is empty, try to extract from Col 2 (common issue in Sintel)
                 if not title and raw_col2:
-                    potential_title = raw_col2
-                    
-                    # Heuristic: Remove ID prefix if present (e.g. "ARIA_2025_... - Title")
-                    if " - " in potential_title:
-                        parts = potential_title.split(" - ", 1)
-                        # If the first part looks like an ID/Code (no spaces, numbers/underscores)
-                        if " " not in parts[0] and len(parts[0]) > 5:
-                            title = parts[1]
-                        else:
-                            title = potential_title
+                    # Format often: "ARIA_CODE - Actual Title" or just "Actual Title"
+                    if " - " in raw_col2:
+                        parts = raw_col2.split(" - ", 1)
+                        # Use the part after dash as title
+                        title = parts[1].strip()
                     else:
-                        title = potential_title
-                    
-                    # Since Col 2 was actually the title, try to infer procedure type from text
-                    lower_text = title.lower()
-                    if 'aperta' in lower_text:
-                        proc_type = "Procedura aperta"
-                    elif 'affidamento diretto' in lower_text:
-                        proc_type = "Affidamento diretto"
-                    elif 'negoziata' in lower_text:
-                        proc_type = "Procedura negoziata"
-                    elif 'manifestazione' in lower_text:
-                        proc_type = "Manifestazione di interesse"
-                    else:
-                        proc_type = "Altro" # Default if we can't guess
-                else:
-                    # Normal case: Col 2 is just the procedure type
-                    proc_type = raw_col2 if raw_col2 else "Procedura aperta"
+                        title = raw_col2
+                
+                # Clean up title - remove incomplete sentences at end (indicated by lack of period)
+                if title:
+                    # If title ends mid-sentence (no period but has comma or space), it's likely truncated
+                    # Keep it as-is but note this is common in Aria exports
+                    title = title.strip()
+                
+                # Procedure Type detection
+                # Check Col 2 text for procedure keywords
+                proc_type = "Procedura aperta"  # Default
+                search_text = (raw_col2 + " " + title).lower()
+                
+                if 'affidamento diretto' in search_text:
+                    proc_type = "Affidamento diretto"
+                elif 'procedura negoziata' in search_text or 'negoziata' in search_text:
+                    proc_type = "Procedura negoziata"
+                elif 'procedura aperta' in search_text or 'aperta' in search_text:
+                    proc_type = "Procedura aperta"
+                elif 'manifestazione' in search_text:
+                    proc_type = "Manifestazione di interesse"
+                elif 'richiesta' in search_text:
+                    proc_type = "Richiesta di offerta"
+                
+                # Category detection from title keywords
+                category = self._infer_category(title + " " + raw_col2)
 
                 # Authority
                 authority = cols[3].get_text(strip=True) if len(cols) > 3 else "Regione Lombardia"
@@ -187,7 +194,8 @@ class AriaScraper(BaseScraper):
                         'contracting_authority': authority,
                         'amount': amount,
                         'procedure_type': proc_type,
-                        'place_of_execution': 'Lombardia', # Default for Aria
+                        'category': category,
+                        'place_of_execution': 'Lombardia',
                         'platform_name': self.platform_name,
                         'publication_date': datetime.now().date()
                     })
@@ -198,3 +206,26 @@ class AriaScraper(BaseScraper):
                 self.stats['errors'] += 1
                 
         return tenders
+    
+    def _infer_category(self, text: str) -> str:
+        """Infer tender category from text content"""
+        if not text:
+            return "Services"
+        
+        text_lower = text.lower()
+        
+        # Works keywords
+        works_keywords = ['lavori', 'costruzione', 'ristrutturazione', 'manutenzione', 'edificio', 
+                         'infrastruttura', 'strade', 'edile', 'impianto']
+        if any(kw in text_lower for kw in works_keywords):
+            return "Works"
+        
+        # Supplies keywords
+        supplies_keywords = ['fornitura', 'forniture', 'acquisto', 'materiali', 'attrezzature',
+                            'dispositivi', 'apparecchiature', 'beni', 'prodotti', 'medicazioni',
+                            'farmaci', 'arredi', 'ausili']
+        if any(kw in text_lower for kw in supplies_keywords):
+            return "Supplies"
+        
+        # Services is default
+        return "Services"
