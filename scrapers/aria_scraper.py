@@ -116,8 +116,39 @@ class AriaScraper(BaseScraper):
                      # Fallback to search page if detailed link is JS
                      full_url = f"{self.base_url}/eprocdata/arcaSearch.xhtml"
 
-                # Procedure Type
-                proc_type = cols[2].get_text(strip=True) if len(cols) > 2 else "Procedura aperta"
+                # Procedure Type logic with Title Fallback
+                raw_col2 = cols[2].get_text(strip=True) if len(cols) > 2 else ""
+                
+                # If Title is empty (common in some Sintel views), try to extract it from Col 2
+                if not title and raw_col2:
+                    potential_title = raw_col2
+                    
+                    # Heuristic: Remove ID prefix if present (e.g. "ARIA_2025_... - Title")
+                    if " - " in potential_title:
+                        parts = potential_title.split(" - ", 1)
+                        # If the first part looks like an ID/Code (no spaces, numbers/underscores)
+                        if " " not in parts[0] and len(parts[0]) > 5:
+                            title = parts[1]
+                        else:
+                            title = potential_title
+                    else:
+                        title = potential_title
+                    
+                    # Since Col 2 was actually the title, try to infer procedure type from text
+                    lower_text = title.lower()
+                    if 'aperta' in lower_text:
+                        proc_type = "Procedura aperta"
+                    elif 'affidamento diretto' in lower_text:
+                        proc_type = "Affidamento diretto"
+                    elif 'negoziata' in lower_text:
+                        proc_type = "Procedura negoziata"
+                    elif 'manifestazione' in lower_text:
+                        proc_type = "Manifestazione di interesse"
+                    else:
+                        proc_type = "Altro" # Default if we can't guess
+                else:
+                    # Normal case: Col 2 is just the procedure type
+                    proc_type = raw_col2 if raw_col2 else "Procedura aperta"
 
                 # Authority
                 authority = cols[3].get_text(strip=True) if len(cols) > 3 else "Regione Lombardia"
