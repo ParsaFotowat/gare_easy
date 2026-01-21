@@ -21,6 +21,8 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from database import DatabaseManager
 from database.models import Tender, Level2Data, Attachment, ScraperLog
+from scrapers import MEFScraper, ToscanaScraper, EmiliaScraper, AriaScraper
+from processors import DocumentProcessor
 import yaml
 
 
@@ -31,6 +33,15 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded"
 )
+
+
+def load_config_data():
+    """Load configuration from YAML file"""
+    root_dir = Path(__file__).parent.parent
+    config_path = root_dir / 'config' / 'config.yaml'
+    
+    with open(config_path, 'r') as f:
+        return yaml.safe_load(f)
 
 
 @st.cache_resource
@@ -175,7 +186,80 @@ def main():
         if st.button("🔄 Refresh Data", use_container_width=True):
             st.cache_data.clear()
             st.rerun()
-    
+            
+        st.divider()
+        
+        # Scraper controls
+        st.header("🤖 Scrapers")
+        platform_to_scrape = st.selectbox(
+            "Select Platform", 
+            ['All', 'MEF', 'Toscana', 'Emilia', 'Aria']
+        )
+        
+        if st.button("🚀 Start Scraper", use_container_width=True):
+            config = load_config_data()
+            
+            # Map selection to classes
+            scraper_map = {
+                'MEF': [MEFScraper],
+                'Toscana': [ToscanaScraper],
+                'Emilia': [EmiliaScraper],
+                'Aria': [AriaScraper],
+                'All': [MEFScraper, ToscanaScraper, EmiliaScraper, AriaScraper]
+            }
+            
+            scrapers_to_run = scraper_map.get(platform_to_scrape, [])
+            
+            status_container = st.status("Running scrapers...", expanded=True)
+            
+            try:
+                for scraper_cls in scrapers_to_run:
+                    # Re-instantiate scraper with fresh config
+                    scraper = scraper_cls(config, db_manager)
+                    platform_name = scraper.platform_name
+                    status_container.write(f"Starting {platform_name}...")
+                    
+                    # Run scraper
+                    stats = scraper.run()
+                    status_container.write(f"✅ {platform_name}: Found {stats['found']}, New {stats['new']}, Updated {stats['updated']}")
+                    
+                    # Trigger document download for new/updated findings
+                    if stats['new'] > 0 or stats['updated'] > 0:
+                        status_container.write(f"  ⬇️ Downloading documents for {platform_name}...")
+                        doc_processor = DocumentProcessor(config, db_manager)
+                        
+                        with db_manager.get_session() as session:
+                            # Get tenders that need file processing for this platform
+                            tenders = session.query(Tender).filter(
+                                Tender.platform_name == platform_name,
+                                Tender.status == 'Active'
+                            ).order_by(Tender.last_updated_at.desc()).limit(20).all()
+                            
+                            for tender in tenders:
+                                attachments = session.query(Attachment).filter(
+                                    Attachment.tender_id == tender.id,
+                                    Attachment.downloaded == 0
+                                ).all()
+                                
+                                if attachments:
+                                    attachment_dicts = [{
+                                        'file_name': att.file_name,
+                                        'file_url': att.file_url,
+                                        'category': att.category
+                                    } for att in attachments]
+                                    
+                                    doc_processor.process_tender_attachments(tender.id, attachment_dicts)
+
+                status_container.update(label="Scraping completed!", state="complete", expanded=False)
+                st.success("Scraping finished successfully!")
+                st.cache_data.clear()
+                
+            except Exception as e:
+                status_container.update(label="Scraping failed", state="error")
+                st.error(f"Error occurred: {e}")
+                # Log full error to console for debugging
+                print(f"Scraper error: {e}")
+
     # Main content
     tab1, tab2, tab3, tab4 = st.tabs(["📊 Overview", "📋 Tenders", "📈 Analytics", "🔍 Details"])
     
