@@ -36,11 +36,20 @@ st.set_page_config(
 @st.cache_resource
 def get_db_manager():
     """Initialize database manager"""
-    with open('config/config.yaml', 'r') as f:
+    # Get absolute path to repo root
+    root_dir = Path(__file__).parent.parent
+    config_path = root_dir / 'config' / 'config.yaml'
+    
+    with open(config_path, 'r') as f:
         config = yaml.safe_load(f)
     
-    db_path = config['database']['path']
-    return DatabaseManager(f"sqlite:///{db_path}")
+    db_rel_path = config['database']['path']
+    db_abs_path = root_dir / db_rel_path
+    
+    # Ensure directory exists
+    db_abs_path.parent.mkdir(parents=True, exist_ok=True)
+    
+    return DatabaseManager(f"sqlite:///{db_abs_path}")
 
 
 @st.cache_data(ttl=60)
