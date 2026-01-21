@@ -1,0 +1,55 @@
+# .gitignore for Gare Easy
+
+# Environment
+venv/
+env/
+.env
+
+# Database
+data/
+*.db
+*.db-journal
+
+# Downloads
+downloads/
+
+# Logs
+logs/
+*.log
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Playwright
+.playwright/
+
+# Distribution
+build/
+dist/
+*.egg-info/
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Streamlit
+.streamlit/

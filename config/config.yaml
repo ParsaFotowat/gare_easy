@@ -1,0 +1,114 @@
+database:
+  type: sqlite
+  path: data/gare_easy.db
+  
+  # For PostgreSQL (future migration)
+  # type: postgresql
+  # host: localhost
+  # port: 5432
+  # database: gare_easy
+  # username: postgres
+  # password: your_password
+
+scraper:
+  update_interval_hours: 6
+  max_retries: 3
+  timeout_seconds: 30
+  headless: true
+  download_timeout: 60
+  
+  # Platform priority based on scoring
+  platform_priority:
+    - mef          # 50 points - COMPLETE THIS FIRST
+    - aria         # 20 points
+    - toscana      # 20 points
+    - empulia      # 20 points
+    - emilia       # 20 points
+    - asmecomm     # 20 points
+
+documents:
+  download_path: data/downloads
+  max_file_size_mb: 50
+  allowed_extensions:
+    - pdf
+    - doc
+    - docx
+    - xls
+    - xlsx
+    - zip
+    - rar
+  
+  # Classification keywords
+  compilable_keywords:
+    - modulo
+    - modello
+    - domanda
+    - istanza
+    - dichiarazione
+    - template
+    - form
+    - compilabile
+  
+  informative_keywords:
+    - capitolato
+    - disciplinare
+    - bando
+    - allegato tecnico
+    - regolamento
+    - schema
+    - elaborato
+
+level2:
+  enabled: true
+  model: gemini-pro  # Free tier model
+  max_pages_per_document: 30  # Limit PDF pages to send to Gemini
+  keywords_to_search:
+    qualifications:
+      - requisiti
+      - fatturato
+      - personale
+      - certificazioni
+      - ISO
+      - SOA
+    evaluation:
+      - criteri di valutazione
+      - punteggio
+      - peso
+      - soglia
+    process:
+      - modalità di presentazione
+      - procedura
+      - busta
+    delivery:
+      - esecuzione
+      - pagamenti
+      - garanzie
+      - anticipi
+    documentation:
+      - documenti da presentare
+      - formato
+      - firma
+
+logging:
+  level: INFO
+  format: "{time:YYYY-MM-DD HH:mm:ss} | {level} | {name}:{function}:{line} - {message}"
+  file: logs/scraper.log
+  rotation: "100 MB"
+  retention: "30 days"
+
+filters:
+  # Exclude these types of notices
+  exclude_types:
+    - manifestazione di interesse
+    - avviso di preinformazione
+    - esito di gara
+    - apertura elenco
+    - indagine di mercato
+  
+  # Only include tenders with deadline after today
+  only_open_tenders: true
+
+level2:
+  model: gemini-2.0-flash
+  max_output_tokens: 4000
+  temperature: 0.1
