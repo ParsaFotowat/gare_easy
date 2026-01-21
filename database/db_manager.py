@@ -22,6 +22,20 @@ class DatabaseManager:
         Args:
             connection_string: SQLAlchemy connection string
         """
+        if 'sqlite' in connection_string:
+            import os
+            # Remove prefix to get path
+            path = connection_string.replace('sqlite:///', '')
+            # Get directory
+            directory = os.path.dirname(path)
+            # Create directory if it exists (is not empty string for current dir) and doesn't exist on disk
+            if directory and not os.path.exists(directory):
+                try:
+                    os.makedirs(directory, exist_ok=True)
+                    logger.info(f"Created database directory: {directory}")
+                except Exception as e:
+                    logger.error(f"Failed to create database directory {directory}: {e}")
+
         self.engine = create_engine(
             connection_string,
             echo=False,
